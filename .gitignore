@@ -1,0 +1,9 @@
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+/vendor/
+uploads/
+ws-main/ws-file-handler

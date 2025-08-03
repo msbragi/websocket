@@ -1,0 +1,6 @@
+{
+  "server_port": "8088",
+  "upload_dir": "/tmp/uploads",
+  "update_url": "http://localhost:8080/update",
+  "ws_status": ""
+}

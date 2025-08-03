@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket File Transfer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="main-container">
+        <h1>WebSocket File Transfer</h1>
+        <p><a href="config.html">Config</a></p>
+
+        <div class="section">
+            <h2>Upload File</h2>
+            <input type="file" id="fileInput">
+            <button onclick="uploadFile()">Upload</button>
+            <input type="text" id="uploadFilename" placeholder="Custom filename (optional)">
+        </div>
+        
+        <div class="section">
+            <h2>Download File</h2>
+            <input type="text" id="downloadFilename" placeholder="Enter filename">
+            <button onclick="downloadFile()">Download</button>
+            <a id="downloadLink" style="display:none">Download</a>
+        </div>
+        
+        <div class="section">
+            <h2>Output</h2>
+            <div id="output"></div>
+        </div>
+    </div>
+
+    <script>
+        const ws = new WebSocket('ws://localhost:8088/file');
+        let fileBuffer = null;
+        let fileName = '';
+
+        ws.onopen = function() {
+            appendOutput('Connected to server');
+        };
+
+        ws.onmessage = function(event) {
+            try {
+                const msg = JSON.parse(event.data);
+                switch(msg.type) {
+                    case 'filedata':
+                        appendOutput('Received file data, starting download...');
+                        handleFileData(msg.filename, msg.data);
+                        break;
+                    case 'success':
+                        appendOutput('Success: ' + decodeMessage(msg.data));
+                        break;
+                    case 'error':
+                        appendOutput('Error: ' + decodeMessage(msg.data));
+                        break;
+                    default:
+                        appendOutput('Unknown message: ' + event.data);
+                }
+            } catch(e) {
+                appendOutput('Message error: ' + e.message);
+                appendOutput('Raw message: ' + event.data);
+            }
+        };
+
+        ws.onclose = function() {
+            appendOutput('Disconnected from server');
+        };
+
+        function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const customName = document.getElementById('uploadFilename').value;
+            
+            if (!fileInput.files.length) {
+                appendOutput('Please select a file');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            fileName = customName || file.name;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const msg = {
+                    type: 'putfile',
+                    filename: fileName,
+                    data: Array.from(data)
+                };
+                ws.send(JSON.stringify(msg));
+                appendOutput('Uploading: ' + fileName);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function downloadFile() {
+            fileName = document.getElementById('downloadFilename').value;
+            if (!fileName) {
+                appendOutput('Please enter a filename');
+                return;
+            }
+            
+            // Reset the download link
+            const downloadLink = document.getElementById('downloadLink');
+            downloadLink.style.display = 'none';
+            downloadLink.href = '#';
+            
+            const msg = {
+                type: 'getfile',
+                filename: fileName
+            };
+            ws.send(JSON.stringify(msg));
+            appendOutput('Requesting download: ' + fileName);
+        }
+
+        function handleFileData(filename, dataArray) {
+            const uint8Array = new Uint8Array(dataArray);
+            const blob = new Blob([uint8Array]);
+            const url = URL.createObjectURL(blob);
+            
+            // Create a temporary download link and trigger the download
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            // Also update the visible download link for manual use
+            const downloadLink = document.getElementById('downloadLink');
+            downloadLink.href = url;
+            downloadLink.download = filename;
+            downloadLink.style.display = 'inline';
+            downloadLink.textContent = 'Save ' + filename + ' again';
+            
+            // Clean up the URL after a delay to allow the download
+            setTimeout(() => {
+                URL.revokeObjectURL(url);
+            }, 1000);
+            
+            appendOutput('File downloaded successfully: ' + filename);
+        }
+
+        function appendOutput(text) {
+            const output = document.getElementById('output');
+            output.textContent += text + '\n';
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function decodeMessage(data) {
+            // Handle both string and byte array formats
+            if (typeof data === 'string') {
+                return data;
+            } else if (Array.isArray(data)) {
+                // Convert byte array to string
+                return new TextDecoder().decode(new Uint8Array(data));
+            } else {
+                return String(data);
+            }
+        }
+    </script>
+</body>
+</html>
+

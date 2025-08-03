@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Configurazione WebSocket Server</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <div class="config-container">
+    <h1>Configurazione WebSocket Server</h1>
+    <p>Modifica le impostazioni del server WebSocket qui sotto:</p>
+    <p><a href="index.html">Return index</a></p>
+    <form id="configForm">
+      <label>Porta del server:
+        <input type="text" id="server_port" name="server_port">
+      </label>
+      <label>Cartella upload:
+        <input type="text" id="upload_dir" name="upload_dir" readonly>
+        <button type="button" id="browseBtn">Browse</button>
+      </label>
+      <label>Update url:
+        <input type="text" id="update_url" name="update_url">
+      </label>
+      <button type="submit">Salva configurazione</button>
+    </form>
+    <div id="status"></div>
+    <!-- Move all browser panel content inside this div -->
+    <div id="browserPanel">
+      <div id="browserHeader">
+        <div id="currentDir"></div>
+        <button id="upButton" type="button" style="display: none;">Up</button>
+      </div>
+      <ul id="folderList" style="list-style:none; padding:0 10px;"></ul>
+      <div id="folderActions">
+        <button type="button" id="createFolderBtn">Crea cartella</button>
+        <button type="button" id="closeBrowser">Chiudi</button>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const WS_BASE_URL = "ws://localhost:8088";
+    const wsConfig = new WebSocket(WS_BASE_URL + "/config");
+    const wsBrowse = new WebSocket(WS_BASE_URL + "/browse");
+    let currentDir = "";
+
+    wsConfig.onopen = function () {
+      wsConfig.send(JSON.stringify({ type: "getconfig" }));
+    };
+
+    wsConfig.onmessage = function (event) {
+      const msg = JSON.parse(event.data);
+      if (msg.type === "configdata" && msg.config) {
+        document.getElementById('server_port').value = msg.config.server_port || "";
+        document.getElementById('upload_dir').value = msg.config.upload_dir || "";
+        document.getElementById('update_url').value = msg.config.update_url || "";
+      } else if (msg.type === "success") {
+        document.getElementById('status').textContent = msg.message || "Configurazione salvata!";
+        document.getElementById('status').style.color = "green";
+      } else if (msg.type === "error") {
+        document.getElementById('status').textContent = msg.message || "Errore!";
+        document.getElementById('status').style.color = "red";
+      }
+    };
+
+    document.getElementById('configForm').onsubmit = function (e) {
+      e.preventDefault();
+      const cfg = {
+        server_port: document.getElementById('server_port').value,
+        upload_dir: document.getElementById('upload_dir').value,
+        update_url: document.getElementById('update_url').value
+      };
+      wsConfig.send(JSON.stringify({
+        type: "setconfig",
+        config: cfg
+      }));
+    };
+
+    document.getElementById('browseBtn').onclick = function () {
+      currentDir = document.getElementById('upload_dir').value || "/";
+      console.log("Current directory:", currentDir);
+      wsBrowse.send(JSON.stringify({ type: "listdir", filename: currentDir }));
+      document.getElementById('browserPanel').style.display = "block";
+    };
+
+    document.getElementById('closeBrowser').onclick = function () {
+      document.getElementById('browserPanel').style.display = "none";
+    };
+
+    wsBrowse.onmessage = function (event) {
+      const msg = JSON.parse(event.data);
+      if (msg.type === "dirlist" && msg.config) {
+        let configObj = msg.config;
+        const folders = configObj.folders || [];
+        currentDir = configObj.path || document.getElementById('upload_dir').value;
+        document.getElementById('currentDir').textContent = configObj.path || "Root Directory";
+        if (configObj.parent) {
+          document.getElementById('upButton').style.display = "inline-block";
+          document.getElementById('upButton').onclick = function () {
+            wsBrowse.send(JSON.stringify({ type: "listdir", filename: configObj.parent }));
+          };
+        } else {
+          document.getElementById('upButton').style.display = "none";
+        }
+        document.getElementById('upload_dir').value = currentDir;
+        createFolderList(folders);
+      }
+    };
+
+    document.getElementById('createFolderBtn').onclick = function () {
+      const folderName = prompt("Nome nuova cartella:");
+      if (folderName) {
+        wsBrowse.send(JSON.stringify({ type: "mkdir", filename: currentDir, message: folderName }));
+      }
+    };
+
+    function createFolderList(folders) {
+      const folderList = document.getElementById('folderList');
+      folderList.innerHTML = "";
+      folders.forEach(function (folder) {
+        const li = document.createElement('li');
+        const link = document.createElement('a');
+        link.href = '#';
+        link.className = 'folder-link';
+        link.textContent = folder;
+        link.onclick = function () {
+          let newPath = currentDir;
+          if (!newPath.endsWith("/")) newPath += "/";
+          newPath += folder;
+          wsBrowse.send(JSON.stringify({ type: "listdir", filename: newPath }));
+        };
+        li.appendChild(link);
+
+        if (folder !== "..") {
+          const chooseBtn = document.createElement('button');
+          chooseBtn.innerHTML = "&#x2714;"; // Unicode check mark ✔️
+          chooseBtn.title = "Scegli questa cartella";
+          chooseBtn.className = "choose-btn";
+          chooseBtn.onclick = function (e) {
+            e.stopPropagation();
+            document.getElementById('upload_dir').value = (currentDir.endsWith("/") ? currentDir : currentDir + "/") + folder;
+            document.getElementById('browserPanel').style.display = "none";
+          };
+          li.appendChild(chooseBtn);
+
+          const delBtn = document.createElement('button');
+          delBtn.innerHTML = "&#10006;"; // Unicode cross ✖️
+          delBtn.title = "Elimina questa cartella";
+          delBtn.className = "delete-btn";
+          delBtn.onclick = function (e) {
+            e.stopPropagation();
+            if (confirm("Eliminare la cartella '" + folder + "'?")) {
+              wsBrowse.send(JSON.stringify({ type: "rmdir", filename: currentDir, message: folder }));
+            }
+          };
+          li.appendChild(delBtn);
+        }
+        folderList.appendChild(li);
+      });
+    }
+
+  </script>
+</body>
+
+</html>
