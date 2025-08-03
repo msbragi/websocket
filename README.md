@@ -12,10 +12,10 @@ This repository contains a Go-based WebSocket server with a browser-accessible c
 
 ## Project Structure
 
-- [`Server/`](websocket/Server/): Main Go server and static web assets.
+- [`Server/`](Server/): Main Go server and static web assets.
   - `main.go`: Server entry point.
   - `static/`: Contains `index.html`, `config.html`, and `style.css`.
-- [`ws-main/`](websocket/ws-main/): WebSocket handlers and utilities.
+- [`ws-main/`](ws-main/): WebSocket handlers and utilities.
   - `main.go`: WebSocket server entry point.
   - `browser_handler.go`: Directory browsing logic.
   - `config_handler.go`: Configuration management.
@@ -46,15 +46,11 @@ Open [http://localhost:8088/static/index.html](http://localhost:8088/static/inde
 
 ## Configuration
 
-Edit [`config/config.json`](websocket/ws-main/config/config.json) or use the web UI at `/static/config.html` to update:
+Edit [`config/config.json`](ws-main/config/config.json) or use the web UI at `/static/config.html` to update:
 
 - `server_port`: Port for the WebSocket server.
 - `upload_dir`: Directory for file uploads.
 - `update_url`: URL for updates.
-
-## Development
-
-This project is ready for development in a VS Code dev container (see [`.devcontainer/devcontainer.json`](websocket/.devcontainer/devcontainer.json)).
 
 ## License
 
@@ -62,4 +58,4 @@ MIT
 
 ---
 
-**TODO:** See [`TODO.md`](websocket/TODO.md) for planned features
+**TODO:** See [`TODO.md`](TODO.md) for planned features
